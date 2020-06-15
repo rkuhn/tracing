@@ -366,11 +366,10 @@ impl<'a> fmt::Debug for WriteAdaptor<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::fmt::{test::MockWriter, time::FormatTime};
-    use lazy_static::lazy_static;
+    use crate::fmt::{test::MockMakeWriter, time::FormatTime};
     use tracing::{self, subscriber::with_default};
 
-    use std::{fmt, sync::Mutex};
+    use std::fmt;
 
     struct MockTime;
     impl FormatTime for MockTime {
@@ -381,45 +380,33 @@ mod test {
 
     #[test]
     fn json() {
-        lazy_static! {
-            static ref BUF: Mutex<Vec<u8>> = Mutex::new(vec![]);
-        }
-
-        let make_writer = || MockWriter::new(&BUF);
-
         let expected =
         "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"target\":\"tracing_subscriber::fmt::format::json::test\",\"fields\":{\"message\":\"some json test\"}}\n";
 
-        test_json(make_writer, expected, &BUF, false);
+        test_json(expected, false);
     }
 
     #[test]
     fn json_flattened_event() {
-        lazy_static! {
-            static ref BUF: Mutex<Vec<u8>> = Mutex::new(vec![]);
-        }
-
-        let make_writer = || MockWriter::new(&BUF);
-
         let expected =
         "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"target\":\"tracing_subscriber::fmt::format::json::test\",\"message\":\"some json test\"}\n";
 
-        test_json(make_writer, expected, &BUF, true);
+        test_json(expected, true);
     }
 
     #[test]
     fn record_works() {
         // This test reproduces issue #707, where using `Span::record` causes
         // any events inside the span to be ignored.
-        lazy_static! {
-            static ref BUF: Mutex<Vec<u8>> = Mutex::new(vec![]);
-        }
 
-        let make_writer = || MockWriter::new(&BUF);
-        let subscriber = crate::fmt().json().with_writer(make_writer).finish();
+        let make_writer = MockMakeWriter::default();
+        let subscriber = crate::fmt()
+            .json()
+            .with_writer(make_writer.clone())
+            .finish();
 
         let parse_buf = || -> serde_json::Value {
-            let buf = String::from_utf8(BUF.try_lock().unwrap().to_vec()).unwrap();
+            let buf = String::from_utf8(make_writer.buf().to_vec()).unwrap();
             let json = buf
                 .lines()
                 .last()
@@ -453,14 +440,12 @@ mod test {
     }
 
     #[cfg(feature = "json")]
-    fn test_json<T>(make_writer: T, expected: &str, buf: &Mutex<Vec<u8>>, flatten_event: bool)
-    where
-        T: crate::fmt::MakeWriter + Send + Sync + 'static,
-    {
+    fn test_json(expected: &str, flatten_event: bool) {
+        let make_writer = MockMakeWriter::default();
         let subscriber = crate::fmt::Subscriber::builder()
             .json()
             .flatten_event(flatten_event)
-            .with_writer(make_writer)
+            .with_writer(make_writer.clone())
             .with_timer(MockTime)
             .finish();
 
@@ -470,7 +455,7 @@ mod test {
             tracing::info!("some json test");
         });
 
-        let actual = String::from_utf8(buf.try_lock().unwrap().to_vec()).unwrap();
+        let actual = String::from_utf8(make_writer.buf().to_vec()).unwrap();
         assert_eq!(expected, actual.as_str());
     }
 }

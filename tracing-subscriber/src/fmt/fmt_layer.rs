@@ -107,7 +107,7 @@ impl<S, N, E, W> Layer<S, N, E, W>
 where
     S: Subscriber + for<'a> LookupSpan<'a>,
     N: for<'writer> FormatFields<'writer> + 'static,
-    W: MakeWriter + 'static,
+    W: for<'writer> MakeWriter<'writer> + 'static,
 {
     /// Sets the [event formatter][`FormatEvent`] that the layer will use to
     /// format events.
@@ -146,7 +146,7 @@ where
 
 // This needs to be a seperate impl block because they place different bounds on the type paramaters.
 impl<S, N, E, W> Layer<S, N, E, W> {
-    /// Sets the [`MakeWriter`] that the [`Layer`] being built will use to write events.
+    /// Sets the [`for<'writer> MakeWriter<'writer>`] that the [`Layer`] being built will use to write events.
     ///
     /// # Examples
     ///
@@ -163,11 +163,11 @@ impl<S, N, E, W> Layer<S, N, E, W> {
     /// # let _ = layer.with_subscriber(tracing_subscriber::registry::Registry::default());
     /// ```
     ///
-    /// [`MakeWriter`]: ../fmt/trait.MakeWriter.html
+    /// [`for<'writer> MakeWriter<'writer>`]: ../fmt/trait.for<'writer> MakeWriter<'writer>.html
     /// [`Layer`]: ../layer/trait.Layer.html
     pub fn with_writer<W2>(self, make_writer: W2) -> Layer<S, N, E, W2>
     where
-        W2: MakeWriter + 'static,
+        W2: for<'writer> MakeWriter<'writer> + 'static,
     {
         Layer {
             fmt_fields: self.fmt_fields,
@@ -326,7 +326,7 @@ where
     S: Subscriber + for<'a> LookupSpan<'a>,
     N: for<'writer> FormatFields<'writer> + 'static,
     E: FormatEvent<S, N> + 'static,
-    W: MakeWriter + 'static,
+    W: for<'writer> MakeWriter<'writer> + 'static,
 {
     /// Builds a [`Layer`] with the provided configuration.
     ///
@@ -356,7 +356,7 @@ where
     S: Subscriber + for<'a> LookupSpan<'a>,
     N: for<'writer> FormatFields<'writer> + 'static,
     E: FormatEvent<S, N> + 'static,
-    W: MakeWriter + 'static,
+    W: for<'writer> MakeWriter<'writer> + 'static,
 {
     #[inline]
     fn make_ctx<'a>(&'a self, ctx: Context<'a, S>) -> FmtContext<'a, S, N> {
@@ -421,7 +421,7 @@ where
     S: Subscriber + for<'a> LookupSpan<'a>,
     N: for<'writer> FormatFields<'writer> + 'static,
     E: FormatEvent<S, N> + 'static,
-    W: MakeWriter + 'static,
+    W: for<'writer> MakeWriter<'writer> + 'static,
 {
     fn new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
         let span = ctx.span(id).expect("Span not found, this is a bug");
@@ -490,7 +490,7 @@ where
 
     unsafe fn downcast_raw(&self, id: TypeId) -> Option<*const ()> {
         // This `downcast_raw` impl allows downcasting a `fmt` layer to any of
-        // its components (event formatter, field formatter, and `MakeWriter`)
+        // its components (event formatter, field formatter, and `for<'writer> MakeWriter<'writer>`)
         // as well as to the layer's type itself. The potential use-cases for
         // this *may* be somewhat niche, though...
         match () {
